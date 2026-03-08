@@ -25,8 +25,9 @@ backend/chroma_db/
 mlflow/mlruns/
 mlflow/mlartifacts/
 
-# Uploads
-backend/uploads/
+# Uploads — ignore contents but keep the directory itself
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Node
 node_modules/
