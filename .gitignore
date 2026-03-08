@@ -49,3 +49,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Personal learning notes
+LEARNING.md
