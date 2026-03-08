@@ -25,3 +25,8 @@ pydantic==2.10.5
 pydantic-settings==2.7.1
 python-dotenv==1.0.1
 httpx==0.28.1
+
+# Workaround: lark is a missing transitive dependency of the ROS system
+# pytest plugin (launch_testing). Installing it prevents pytest from
+# crashing at startup on machines with ROS installed.
+lark==1.3.1
