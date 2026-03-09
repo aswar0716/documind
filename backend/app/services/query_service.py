@@ -5,7 +5,11 @@ from langchain.schema import HumanMessage, SystemMessage
 
 from app.core.config import settings
 from app.core.vector_store import get_collection, embedding_fn
-from app.models.schemas import QueryRequest, QueryResponse, SourceChunk
+from app.models.schemas import (
+    QueryRequest, QueryResponse, SourceChunk,
+    CompareRequest, CompareResponse,
+    MissingRequest, MissingResponse,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -135,33 +139,25 @@ def _compute_confidence(chunks: list[dict]) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Main query function
+# Shared helper — run the full RAG pipeline for one set of document IDs
 # ---------------------------------------------------------------------------
 
-def query_documents(request: QueryRequest) -> QueryResponse:
+def _run_pipeline(question: str, document_ids: list[str], top_k: int) -> QueryResponse:
     """
-    Full RAG pipeline:
-      1. Retrieve the most relevant chunks for the question
-      2. Build a prompt with those chunks as context
-      3. Call the LLM for an answer
-      4. Package everything into a QueryResponse
+    Internal helper used by both query_documents and compare_documents.
+    Retrieves chunks, calls the LLM, computes confidence, returns QueryResponse.
     """
-    chunks = _retrieve_chunks(
-        question=request.question,
-        document_ids=request.document_ids,
-        top_k=request.top_k,
-    )
+    chunks = _retrieve_chunks(question=question, document_ids=document_ids, top_k=top_k)
 
     if not chunks:
         return QueryResponse(
-            question=request.question,
+            question=question,
             answer="No relevant content found in the selected documents.",
             sources=[],
             confidence=0.0,
-            document_ids=request.document_ids,
+            document_ids=document_ids,
         )
 
-    # Build the context block from retrieved chunks
     context_parts = []
     for i, chunk in enumerate(chunks, start=1):
         context_parts.append(
@@ -169,19 +165,16 @@ def query_documents(request: QueryRequest) -> QueryResponse:
         )
     context = "\n\n".join(context_parts)
 
-    # Call the LLM
     llm = _get_llm()
     messages = [
         SystemMessage(content=_SYSTEM_PROMPT),
         HumanMessage(content=_USER_PROMPT_TEMPLATE.format(
             context=context,
-            question=request.question,
+            question=question,
         )),
     ]
-    response = llm.invoke(messages)
-    answer = response.content.strip()
+    answer = llm.invoke(messages).content.strip()
 
-    # Build source objects for the response
     sources = [
         SourceChunk(
             document_id=c["document_id"],
@@ -193,12 +186,140 @@ def query_documents(request: QueryRequest) -> QueryResponse:
         for c in chunks
     ]
 
-    confidence = _compute_confidence(chunks)
-
     return QueryResponse(
-        question=request.question,
+        question=question,
         answer=answer,
         sources=sources,
-        confidence=confidence,
-        document_ids=request.document_ids,
+        confidence=_compute_confidence(chunks),
+        document_ids=document_ids,
     )
+
+
+# ---------------------------------------------------------------------------
+# Main query function
+# ---------------------------------------------------------------------------
+
+def query_documents(request: QueryRequest) -> QueryResponse:
+    """Ask a question against one or more documents. Returns answer + sources + confidence."""
+    return _run_pipeline(request.question, request.document_ids, request.top_k)
+
+
+# ---------------------------------------------------------------------------
+# Comparison mode
+# ---------------------------------------------------------------------------
+
+def compare_documents(request: CompareRequest) -> CompareResponse:
+    """
+    Run the full RAG pipeline independently against two documents and return
+    both answers side by side.
+
+    Each call to _run_pipeline sees ONLY its own document's chunks —
+    the answers are genuinely independent, not blended.
+    """
+    answer_a = _run_pipeline(request.question, [request.document_id_a], request.top_k)
+    answer_b = _run_pipeline(request.question, [request.document_id_b], request.top_k)
+
+    return CompareResponse(
+        question=request.question,
+        answer_a=answer_a,
+        answer_b=answer_b,
+    )
+
+
+# ---------------------------------------------------------------------------
+# "What's missing" mode
+# ---------------------------------------------------------------------------
+
+_MISSING_SYSTEM_PROMPT = """\
+You are an expert at identifying gaps in document coverage.
+You will be given passages retrieved from a document and a question.
+Your job is to identify what aspects of the question the passages do NOT answer.
+
+Respond in this exact format:
+ANSWERABLE: yes or no
+GAPS: a bullet-point list of specific aspects not covered (or "none" if fully answered)
+SUMMARY: one sentence summarising what is and isn't covered
+"""
+
+_MISSING_USER_TEMPLATE = """\
+Document passages:
+{context}
+
+Question: {question}
+
+Analyse what the passages cover and what they miss:"""
+
+
+def what_is_missing(request: MissingRequest) -> MissingResponse:
+    """
+    Retrieve relevant chunks then ask the LLM to identify what aspects of
+    the question are NOT covered by the documents.
+    """
+    chunks = _retrieve_chunks(
+        question=request.question,
+        document_ids=request.document_ids,
+        top_k=5,
+    )
+
+    if not chunks:
+        return MissingResponse(
+            question=request.question,
+            answer="No relevant content found — the documents appear to cover nothing about this topic.",
+            is_answerable=False,
+            missing_aspects=["The documents contain no information on this topic."],
+        )
+
+    context_parts = []
+    for i, chunk in enumerate(chunks, start=1):
+        context_parts.append(
+            f"[Passage {i} — {chunk['filename']}, page {chunk['page']}]\n{chunk['text']}"
+        )
+    context = "\n\n".join(context_parts)
+
+    llm = _get_llm()
+    messages = [
+        SystemMessage(content=_MISSING_SYSTEM_PROMPT),
+        HumanMessage(content=_MISSING_USER_TEMPLATE.format(
+            context=context,
+            question=request.question,
+        )),
+    ]
+    raw = llm.invoke(messages).content.strip()
+
+    # Parse the structured LLM response
+    is_answerable, missing_aspects, summary = _parse_missing_response(raw)
+
+    return MissingResponse(
+        question=request.question,
+        answer=summary,
+        is_answerable=is_answerable,
+        missing_aspects=missing_aspects,
+    )
+
+
+def _parse_missing_response(raw: str) -> tuple[bool, list[str], str]:
+    """
+    Parse the structured output from the 'what's missing' LLM call.
+    Falls back gracefully if the model doesn't follow the exact format.
+    """
+    lines = raw.splitlines()
+    is_answerable = True
+    missing_aspects: list[str] = []
+    summary = raw  # fallback: return raw text as summary
+
+    for line in lines:
+        line = line.strip()
+        if line.lower().startswith("answerable:"):
+            value = line.split(":", 1)[1].strip().lower()
+            is_answerable = value == "yes"
+        elif line.lower().startswith("summary:"):
+            summary = line.split(":", 1)[1].strip()
+        elif line.startswith("-") or line.startswith("•"):
+            aspect = line.lstrip("-•").strip()
+            if aspect and aspect.lower() != "none":
+                missing_aspects.append(aspect)
+
+    if not missing_aspects and not is_answerable:
+        missing_aspects = ["The documents do not sufficiently address this question."]
+
+    return is_answerable, missing_aspects, summary
