@@ -2,14 +2,16 @@ import { useState } from "react";
 import { useDocuments } from "./hooks/useDocuments";
 import { DocumentManager } from "./components/DocumentManager";
 import { QueryView } from "./components/QueryView";
+import { CompareView } from "./components/CompareView";
 
 // The tabs the user can switch between.
 // Using a union type means TypeScript will catch any typo in tab names.
-type Tab = "documents" | "query";
+type Tab = "documents" | "query" | "compare";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "documents", label: "Documents" },
   { id: "query", label: "Query" },
+  { id: "compare", label: "Compare" },
 ];
 
 function App() {
@@ -48,6 +50,7 @@ function App() {
       <main>
         {tab === "documents" && <DocumentManager docsHook={docs} />}
         {tab === "query" && <QueryView documents={docs.documents} />}
+        {tab === "compare" && <CompareView documents={docs.documents} />}
       </main>
     </div>
   );

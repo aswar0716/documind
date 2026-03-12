@@ -1,42 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "../hooks/useQuery";
-import type { DocumentInfo, SourceChunk } from "../types";
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function ConfidenceBar({ value }: { value: number }) {
-  // value is 0–1 from the backend. Convert to a percentage for the bar width
-  // and pick a colour based on how confident the answer is.
-  const pct = Math.round(value * 100);
-  const color =
-    value >= 0.7 ? "#22c55e" : value >= 0.4 ? "#eab308" : "#ef4444";
-
-  return (
-    <div>
-      <div style={{ ...styles.barLabel }}>
-        Confidence: <strong>{pct}%</strong>
-      </div>
-      <div style={styles.barTrack}>
-        <div style={{ ...styles.barFill, width: `${pct}%`, background: color }} />
-      </div>
-    </div>
-  );
-}
-
-function SourceCard({ chunk }: { chunk: SourceChunk }) {
-  const scorePct = Math.round(chunk.score * 100);
-  return (
-    <div style={styles.sourceCard}>
-      <div style={styles.sourceMeta}>
-        <span style={styles.sourceFile}>{chunk.filename}</span>
-        <span style={styles.sourcePage}>p. {chunk.page}</span>
-        <span style={styles.sourceScore}>relevance {scorePct}%</span>
-      </div>
-      {/* The retrieved passage text exactly as it appears in the document */}
-      <p style={styles.sourceText}>{chunk.text}</p>
-    </div>
-  );
-}
+import { ConfidenceBar, SourceCard } from "./shared";
+import type { DocumentInfo } from "../types";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -238,22 +203,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     gap: "1rem",
   },
-  barLabel: {
-    fontSize: "0.85rem",
-    color: "#aaa",
-    marginBottom: "0.35rem",
-  },
-  barTrack: {
-    height: 8,
-    background: "#2a2a2a",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  barFill: {
-    height: "100%",
-    borderRadius: 4,
-    transition: "width 0.4s ease",
-  },
   answerBox: {
     background: "#1a1a1a",
     border: "1px solid #2a2a2a",
@@ -272,38 +221,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "0.5rem",
     textTransform: "uppercase",
     letterSpacing: "0.05em",
-  },
-  sourceCard: {
-    background: "#111",
-    border: "1px solid #222",
-    borderRadius: 8,
-    padding: "0.75rem",
-    marginBottom: "0.5rem",
-  },
-  sourceMeta: {
-    display: "flex",
-    gap: "0.75rem",
-    marginBottom: "0.5rem",
-    flexWrap: "wrap",
-  },
-  sourceFile: {
-    color: "#60a5fa",
-    fontSize: "0.8rem",
-    fontWeight: 500,
-  },
-  sourcePage: {
-    color: "#888",
-    fontSize: "0.8rem",
-  },
-  sourceScore: {
-    color: "#888",
-    fontSize: "0.8rem",
-  },
-  sourceText: {
-    color: "#ccc",
-    fontSize: "0.85rem",
-    lineHeight: 1.6,
-    whiteSpace: "pre-wrap",
   },
   muted: {
     color: "#666",
