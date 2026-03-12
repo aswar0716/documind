@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { useDocuments } from "../hooks/useDocuments";
 import type { DocumentInfo } from "../types";
 
+type DocsHook = ReturnType<typeof useDocuments>;
+
 // ─── Sub-component: one row in the document list ──────────────────────────────
 
 interface DocumentRowProps {
@@ -33,9 +35,8 @@ function DocumentRow({ doc, onDelete }: DocumentRowProps) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function DocumentManager() {
-  const { documents, loading, error, uploading, upload, remove } =
-    useDocuments();
+export function DocumentManager({ docsHook }: { docsHook: DocsHook }) {
+  const { documents, loading, error, uploading, upload, remove } = docsHook;
 
   // uploadError is local to this component — it only matters near the upload form.
   // It is separate from the list-level `error` that comes from the hook.
