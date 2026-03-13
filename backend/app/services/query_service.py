@@ -5,6 +5,7 @@ from langchain.schema import HumanMessage, SystemMessage
 
 from app.core.config import settings
 from app.core.vector_store import get_collection, embedding_fn
+from app.core.mlflow_tracker import log_query_run
 from app.models.schemas import (
     QueryRequest, QueryResponse, SourceChunk,
     CompareRequest, CompareResponse,
@@ -186,11 +187,22 @@ def _run_pipeline(question: str, document_ids: list[str], top_k: int) -> QueryRe
         for c in chunks
     ]
 
+    confidence = _compute_confidence(chunks)
+
+    log_query_run(
+        mode="query",
+        question=question,
+        document_ids=document_ids,
+        top_k=top_k,
+        confidence=confidence,
+        num_sources=len(sources),
+    )
+
     return QueryResponse(
         question=question,
         answer=answer,
         sources=sources,
-        confidence=_compute_confidence(chunks),
+        confidence=confidence,
         document_ids=document_ids,
     )
 
@@ -218,6 +230,16 @@ def compare_documents(request: CompareRequest) -> CompareResponse:
     """
     answer_a = _run_pipeline(request.question, [request.document_id_a], request.top_k)
     answer_b = _run_pipeline(request.question, [request.document_id_b], request.top_k)
+
+    # Log a combined compare run so you can filter by mode="compare" in MLflow UI.
+    log_query_run(
+        mode="compare",
+        question=request.question,
+        document_ids=[request.document_id_a, request.document_id_b],
+        top_k=request.top_k,
+        confidence=(answer_a.confidence + answer_b.confidence) / 2,
+        num_sources=len(answer_a.sources) + len(answer_b.sources),
+    )
 
     return CompareResponse(
         question=request.question,
@@ -288,6 +310,15 @@ def what_is_missing(request: MissingRequest) -> MissingResponse:
 
     # Parse the structured LLM response
     is_answerable, missing_aspects, summary = _parse_missing_response(raw)
+
+    log_query_run(
+        mode="missing",
+        question=request.question,
+        document_ids=request.document_ids,
+        top_k=5,
+        confidence=None,   # no single confidence score for gap analysis
+        num_sources=len(chunks),
+    )
 
     return MissingResponse(
         question=request.question,
