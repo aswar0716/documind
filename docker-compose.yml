@@ -1,0 +1,66 @@
+services:
+
+  # ── Backend (FastAPI) ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    # env_file loads the .env file from the repo root into the container as
+    # environment variables. The container never sees the file itself — only
+    # the values. This is how secrets like OPENAI_API_KEY stay out of the image.
+    env_file: .env
+    environment:
+      # Override the paths from .env to use the Docker volume mount points.
+      CHROMA_DB_PATH: /data/chroma_db
+      UPLOAD_DIR: /data/uploads
+      # "mlflow" is Docker's internal DNS name for the MLflow service below.
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+      # Named volumes persist data on the host even when containers are stopped
+      # or rebuilt. Without this, every "docker compose up" would start fresh
+      # with no documents and no ChromaDB data.
+      - chroma_data:/data/chroma_db
+      - upload_data:/data/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mlflow
+    restart: unless-stopped
+
+  # ── Frontend (Nginx serving built React app) ─────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── MLflow tracking server ───────────────────────────────────────────────────
+  mlflow:
+    image: python:3.12-slim
+    # This command installs mlflow and starts the server in one step.
+    # For a production system you'd bake this into a proper Dockerfile,
+    # but for a dev/demo setup this is simpler and self-contained.
+    command: >
+      sh -c "pip install --quiet mlflow==2.19.0 &&
+             mlflow server
+               --host 0.0.0.0
+               --port 5000
+               --backend-store-uri /mlflow/mlruns
+               --default-artifact-root /mlflow/artifacts"
+    volumes:
+      - mlflow_data:/mlflow
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+# ── Named volumes ─────────────────────────────────────────────────────────────
+# Declaring volumes here lets Docker manage them. They live at
+# /var/lib/docker/volumes/ on the host and persist across container restarts.
+volumes:
+  chroma_data:
+  upload_data:
+  mlflow_data:

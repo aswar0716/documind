@@ -9,7 +9,9 @@ import type {
   MissingResponse,
 } from "../types";
 
-const BASE_URL = "http://localhost:8000";
+// Empty base URL: in dev, Vite's proxy forwards /api/* to localhost:8000.
+// In Docker, Nginx's proxy forwards /api/* to the backend container.
+const BASE_URL = "/api";
 
 // Shared helper: throw a descriptive error if the response is not 2xx.
 async function handleResponse<T>(response: Response): Promise<T> {
