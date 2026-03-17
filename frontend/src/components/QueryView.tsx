@@ -3,26 +3,13 @@ import { useQuery } from "../hooks/useQuery";
 import { ConfidenceBar, SourceCard } from "./shared";
 import type { DocumentInfo } from "../types";
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
-interface QueryViewProps {
-  documents: DocumentInfo[];
-}
-
-export function QueryView({ documents }: QueryViewProps) {
-  // question is a controlled input — React owns the value.
-  // Every keystroke calls setQuestion, keeping state and UI in sync.
+export function QueryView({ documents }: { documents: DocumentInfo[] }) {
   const [question, setQuestion] = useState("");
-
-  // selectedIds is a Set of document_id strings the user has checked.
-  // Set gives O(1) has/add/delete without mutating array indices.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
   const { result, loading, error, run, reset } = useQuery();
 
-  function toggleDocument(id: string) {
+  function toggle(id: string) {
     setSelectedIds((prev) => {
-      // Sets are mutable, so we copy before modifying to avoid mutating state directly.
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -30,13 +17,9 @@ export function QueryView({ documents }: QueryViewProps) {
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    // Prevent the browser's default form submission (which would reload the page).
     e.preventDefault();
     if (!question.trim() || selectedIds.size === 0) return;
-    await run({
-      question: question.trim(),
-      document_ids: [...selectedIds], // Set → Array for JSON serialisation
-    });
+    await run({ question: question.trim(), document_ids: [...selectedIds] });
   }
 
   function handleReset() {
@@ -49,76 +32,80 @@ export function QueryView({ documents }: QueryViewProps) {
 
   if (documents.length === 0) {
     return (
-      <div style={styles.container}>
-        <p style={styles.muted}>Upload at least one document before querying.</p>
-      </div>
+      <EmptyState icon="🔍" title="No documents yet" sub="Upload a PDF on the Documents tab first." />
     );
   }
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.heading}>Query</h2>
+    <div>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={s.pageTitle}>Query</h1>
+        <p style={s.pageSubtitle}>Ask a question and get an answer from your documents.</p>
+      </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Document selector */}
-        <fieldset style={styles.fieldset}>
-          <legend style={styles.legend}>Select documents to query</legend>
-          {documents.map((doc) => (
-            <label key={doc.document_id} style={styles.checkLabel}>
-              <input
-                type="checkbox"
-                checked={selectedIds.has(doc.document_id)}
-                onChange={() => toggleDocument(doc.document_id)}
-                style={{ marginRight: 8 }}
-              />
-              {doc.filename}
-            </label>
-          ))}
+        <fieldset className="fieldset" style={{ marginBottom: "0.85rem" }}>
+          <legend>Documents to search</legend>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: "0.4rem" }}>
+            {documents.map((doc) => (
+              <label key={doc.document_id} className="check-label">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(doc.document_id)}
+                  onChange={() => toggle(doc.document_id)}
+                />
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {doc.filename}
+                </span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", flexShrink: 0 }}>
+                  {doc.page_count}p
+                </span>
+              </label>
+            ))}
+          </div>
         </fieldset>
 
-        {/* Question input */}
         <textarea
-          style={styles.textarea}
+          className="textarea"
           rows={3}
           placeholder="Ask a question about the selected documents…"
           value={question}
-          // onChange keeps React state in sync with every keystroke.
-          // Without this, the textarea would be an uncontrolled input
-          // and React couldn't read its value at submit time.
           onChange={(e) => setQuestion(e.target.value)}
+          style={{ marginBottom: "0.75rem" }}
         />
 
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button type="submit" style={canSubmit ? styles.submitBtn : { ...styles.submitBtn, opacity: 0.5 }} disabled={!canSubmit}>
-            {loading ? "Thinking…" : "Ask"}
+          <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
+            {loading ? <><span className="spinner" /> Thinking…</> : "Ask"}
           </button>
           {result && (
-            <button type="button" style={styles.resetBtn} onClick={handleReset}>
+            <button type="button" className="btn btn-ghost" onClick={handleReset}>
               Clear
             </button>
           )}
         </div>
       </form>
 
-      {error && <p style={styles.errorText}>{error}</p>}
+      {error && <p className="error-text" style={{ marginTop: "0.75rem" }}>{error}</p>}
 
-      {/* Results */}
       {result && (
-        <div style={styles.results}>
-          <ConfidenceBar value={result.confidence} />
+        <div style={{ marginTop: "1.75rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div>
+            <p className="section-label">Confidence</p>
+            <ConfidenceBar value={result.confidence} />
+          </div>
 
-          <div style={styles.answerBox}>
-            <p style={styles.answerText}>{result.answer}</p>
+          <div className="card">
+            <p className="section-label" style={{ marginBottom: "0.6rem" }}>Answer</p>
+            <p style={{ color: "var(--text)", lineHeight: 1.75, fontSize: "0.9rem", whiteSpace: "pre-wrap" }}>
+              {result.answer}
+            </p>
           </div>
 
           {result.sources.length > 0 && (
             <div>
-              <p style={styles.sourcesHeading}>
-                Sources ({result.sources.length})
-              </p>
-              {result.sources.map((chunk, i) => (
-                <SourceCard key={i} chunk={chunk} />
-              ))}
+              <p className="section-label">Sources ({result.sources.length})</p>
+              {result.sources.map((chunk, i) => <SourceCard key={i} chunk={chunk} />)}
             </div>
           )}
         </div>
@@ -127,103 +114,17 @@ export function QueryView({ documents }: QueryViewProps) {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+function EmptyState({ icon, title, sub }: { icon: string; title: string; sub: string }) {
+  return (
+    <div style={{ textAlign: "center", padding: "4rem 1rem" }}>
+      <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>{icon}</div>
+      <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: "0.3rem" }}>{title}</div>
+      <div className="muted-text">{sub}</div>
+    </div>
+  );
+}
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    maxWidth: 640,
-    margin: "0 auto",
-    padding: "2rem 1rem",
-  },
-  heading: {
-    fontSize: "1.25rem",
-    fontWeight: 600,
-    marginBottom: "1rem",
-    color: "#f0f0f0",
-  },
-  fieldset: {
-    border: "1px solid #2a2a2a",
-    borderRadius: 8,
-    padding: "0.75rem 1rem",
-    marginBottom: "0.75rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.4rem",
-  },
-  legend: {
-    color: "#888",
-    fontSize: "0.8rem",
-    padding: "0 0.25rem",
-  },
-  checkLabel: {
-    display: "flex",
-    alignItems: "center",
-    color: "#f0f0f0",
-    fontSize: "0.9rem",
-    cursor: "pointer",
-  },
-  textarea: {
-    width: "100%",
-    background: "#1a1a1a",
-    color: "#f0f0f0",
-    border: "1px solid #2a2a2a",
-    borderRadius: 8,
-    padding: "0.75rem",
-    fontSize: "0.95rem",
-    resize: "vertical",
-    marginBottom: "0.75rem",
-    fontFamily: "inherit",
-  },
-  submitBtn: {
-    background: "#2563eb",
-    color: "#fff",
-    border: "none",
-    borderRadius: 6,
-    padding: "0.5rem 1.25rem",
-    fontSize: "0.95rem",
-    cursor: "pointer",
-  },
-  resetBtn: {
-    background: "transparent",
-    color: "#888",
-    border: "1px solid #333",
-    borderRadius: 6,
-    padding: "0.5rem 1rem",
-    fontSize: "0.95rem",
-    cursor: "pointer",
-  },
-  errorText: {
-    color: "#f87171",
-    fontSize: "0.875rem",
-    marginTop: "0.5rem",
-  },
-  results: {
-    marginTop: "1.5rem",
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-  },
-  answerBox: {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    borderRadius: 8,
-    padding: "1rem",
-  },
-  answerText: {
-    color: "#f0f0f0",
-    lineHeight: 1.65,
-    fontSize: "0.95rem",
-    whiteSpace: "pre-wrap",
-  },
-  sourcesHeading: {
-    color: "#888",
-    fontSize: "0.8rem",
-    marginBottom: "0.5rem",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-  },
-  muted: {
-    color: "#666",
-    fontSize: "0.875rem",
-  },
+const s: Record<string, React.CSSProperties> = {
+  pageTitle:    { fontSize: "1.4rem", fontWeight: 700, color: "var(--text)", marginBottom: "0.25rem" },
+  pageSubtitle: { color: "var(--text-muted)", fontSize: "0.875rem" },
 };
