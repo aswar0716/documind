@@ -37,7 +37,7 @@ export function QueryView({ documents }: { documents: DocumentInfo[] }) {
   }
 
   return (
-    <div>
+    <div className="page-enter">
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={s.pageTitle}>Query</h1>
         <p style={s.pageSubtitle}>Ask a question and get an answer from your documents.</p>

@@ -44,7 +44,7 @@ export default function App() {
         </nav>
       </header>
 
-      <main style={s.main}>
+      <main style={tab === "compare" ? s.mainWide : s.main}>
         {tab === "documents" && <DocumentManager docsHook={docs} />}
         {tab === "query"     && <QueryView     documents={docs.documents} />}
         {tab === "compare"   && <CompareView   documents={docs.documents} />}
@@ -57,20 +57,22 @@ export default function App() {
 const s: Record<string, React.CSSProperties> = {
   header: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "stretch",
     justifyContent: "space-between",
-    padding: "0.75rem 1.5rem",
+    padding: "0 1.5rem",
     borderBottom: "1px solid var(--border)",
     backdropFilter: "blur(8px)",
     position: "sticky",
     top: 0,
     zIndex: 10,
-    background: "rgba(10,10,15,0.85)",
+    background: "rgba(10,10,15,0.92)",
+    minHeight: 52,
   },
   brand: {
     display: "flex",
-    alignItems: "baseline",
+    alignItems: "center",
     gap: "0.75rem",
+    padding: "0.5rem 0",
   },
   logo: {
     fontSize: "1.15rem",
@@ -91,6 +93,11 @@ const s: Record<string, React.CSSProperties> = {
   },
   main: {
     maxWidth: 900,
+    margin: "0 auto",
+    padding: "2rem 1.25rem",
+  },
+  mainWide: {
+    maxWidth: 1200,
     margin: "0 auto",
     padding: "2rem 1.25rem",
   },

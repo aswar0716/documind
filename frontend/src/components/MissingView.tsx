@@ -36,7 +36,7 @@ export function MissingView({ documents }: { documents: DocumentInfo[] }) {
   }
 
   return (
-    <div>
+    <div className="page-enter">
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={s.pageTitle}>What's Missing?</h1>
         <p style={s.pageSubtitle}>Find out which aspects of a question your documents <em>don't</em> cover.</p>

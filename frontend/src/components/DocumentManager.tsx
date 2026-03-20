@@ -54,7 +54,7 @@ export function DocumentManager({ docsHook }: { docsHook: DocsHook }) {
   }
 
   return (
-    <div>
+    <div className="page-enter">
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={s.pageTitle}>Documents</h1>
         <p style={s.pageSubtitle}>Upload PDF files to make them queryable.</p>

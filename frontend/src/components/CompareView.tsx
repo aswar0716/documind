@@ -54,7 +54,7 @@ export function CompareView({ documents }: { documents: DocumentInfo[] }) {
   }
 
   return (
-    <div>
+    <div className="page-enter">
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={s.pageTitle}>Compare</h1>
         <p style={s.pageSubtitle}>Ask the same question against two documents and see the answers side by side.</p>

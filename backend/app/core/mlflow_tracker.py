@@ -37,35 +37,25 @@ def log_query_run(
 ) -> None:
     """
     Log one RAG pipeline execution as an MLflow run.
-
-    Parameters
-    ----------
-    mode         : which pipeline ran ("query", "compare", "missing")
-    question     : the user's question
-    document_ids : IDs of documents that were queried
-    top_k        : number of chunks retrieved
-    confidence   : answer confidence score (0–1), or None if not applicable
-    num_sources  : number of source chunks returned
+    If the MLflow server is unreachable, the error is silently ignored so
+    the query still returns a result — tracking is best-effort.
     """
-    _init_experiment()
+    try:
+        _init_experiment()
 
-    # mlflow.start_run() opens a new run. The `with` block closes it automatically,
-    # even if an exception is raised — similar to how `with open(file)` works.
-    with mlflow.start_run():
+        with mlflow.start_run():
+            mlflow.log_param("mode", mode)
+            mlflow.log_param("model", settings.llm_model)
+            mlflow.log_param("top_k", top_k)
+            mlflow.log_param("num_documents", len(document_ids))
 
-        # --- Parameters (settings that were chosen before the run) ---
-        mlflow.log_param("mode", mode)
-        mlflow.log_param("model", settings.llm_model)
-        mlflow.log_param("top_k", top_k)
-        mlflow.log_param("num_documents", len(document_ids))
+            if confidence is not None:
+                mlflow.log_metric("confidence", confidence)
+            mlflow.log_metric("num_sources", num_sources)
 
-        # --- Metrics (numeric measurements from the run) ---
-        if confidence is not None:
-            mlflow.log_metric("confidence", confidence)
-        mlflow.log_metric("num_sources", num_sources)
+            mlflow.set_tag("question", question[:250])
+            mlflow.set_tag("document_ids", ", ".join(document_ids))
 
-        # --- Tags (freeform text for search/filter in the MLflow UI) ---
-        # Truncate the question to 250 chars — MLflow tag values have a
-        # length limit and a full question is rarely needed for comparison.
-        mlflow.set_tag("question", question[:250])
-        mlflow.set_tag("document_ids", ", ".join(document_ids))
+    except Exception:
+        # MLflow server not running or unreachable — skip tracking silently.
+        pass
