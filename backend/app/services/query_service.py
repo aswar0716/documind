@@ -74,9 +74,9 @@ def _retrieve_chunks(
 
     collection = get_collection()
 
-    # Build a ChromaDB metadata filter.
-    # If one document → simple equality filter.
-    # If multiple documents → use $in operator.
+    # Build a ChromaDB metadata filter scoped to the given document IDs.
+    # New chunks also carry project_id in metadata, but filtering by document_id
+    # is sufficient for isolation since each document_id is a unique UUID.
     if len(document_ids) == 1:
         where_filter = {"document_id": document_ids[0]}
     else:

@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     mlflow_tracking_uri: str = "http://localhost:5000"
     mlflow_experiment_name: str = "documind-rag"
 
+    # SQLite
+    sqlite_db_path: str = "./documind.db"
+
     # App
     app_env: str = "development"
     log_level: str = "INFO"
