@@ -1,82 +1,95 @@
 import type {
-  DocumentUploadResponse,
-  DocumentListResponse,
-  QueryRequest,
-  QueryResponse,
-  CompareRequest,
-  CompareResponse,
-  MissingRequest,
-  MissingResponse,
+  Project, ProjectListResponse,
+  DocumentInfo, DocumentListResponse,
+  ChatMessagePair, MessageListResponse, SendMessageRequest,
 } from "../types";
 
-// All backend routes are mounted under /api/v1.
-// In dev, Vite proxies /api/v1/* → http://localhost:8000/api/v1/*.
-// In Docker, Nginx does the same forwarding.
-const BASE_URL = "/api/v1";
+const BASE = "/api/v1";
 
-// Shared helper: throw a descriptive error if the response is not 2xx.
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`HTTP ${response.status}: ${body}`);
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`HTTP ${res.status}: ${body}`);
   }
-  return response.json() as Promise<T>;
+  return res.json() as Promise<T>;
 }
 
-// --- Documents ---
+// ─── Projects ─────────────────────────────────────────────────────────────────
 
-export async function listDocuments(): Promise<DocumentListResponse> {
-  const response = await fetch(`${BASE_URL}/documents/`);
-  return handleResponse<DocumentListResponse>(response);
+export async function listProjects(): Promise<Project[]> {
+  const res = await fetch(`${BASE}/projects/`);
+  const data = await handleResponse<ProjectListResponse>(res);
+  return data.projects;
 }
 
-export async function uploadDocument(file: File): Promise<DocumentUploadResponse> {
+export async function createProject(name: string, description: string): Promise<Project> {
+  const res = await fetch(`${BASE}/projects/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description }),
+  });
+  return handleResponse<Project>(res);
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${projectId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function updateProject(projectId: string, name: string): Promise<Project> {
+  const res = await fetch(`${BASE}/projects/${projectId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return handleResponse<Project>(res);
+}
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
+export async function listDocuments(projectId: string): Promise<DocumentInfo[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/documents`);
+  const data = await handleResponse<DocumentListResponse>(res);
+  return data.documents;
+}
+
+export async function uploadDocument(projectId: string, file: File): Promise<DocumentInfo> {
   const form = new FormData();
-  form.append("file", file); // "file" must match the FastAPI parameter name
-  const response = await fetch(`${BASE_URL}/documents/upload`, {
+  form.append("file", file);
+  const res = await fetch(`${BASE}/projects/${projectId}/documents/upload`, {
     method: "POST",
     body: form,
-    // Do NOT set Content-Type manually — the browser sets it automatically with
-    // the correct multipart boundary when body is FormData.
   });
-  return handleResponse<DocumentUploadResponse>(response);
+  return handleResponse<DocumentInfo>(res);
 }
 
-export async function deleteDocument(documentId: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/documents/${documentId}`, {
+export async function deleteDocument(projectId: string, documentId: string): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${projectId}/documents/${documentId}`, {
     method: "DELETE",
   });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`HTTP ${response.status}: ${body}`);
-  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
-// --- Query ---
+// ─── Chat ─────────────────────────────────────────────────────────────────────
 
-export async function queryDocuments(request: QueryRequest): Promise<QueryResponse> {
-  const response = await fetch(`${BASE_URL}/query/`, {
+export async function listMessages(projectId: string): Promise<MessageListResponse> {
+  const res = await fetch(`${BASE}/projects/${projectId}/messages`);
+  return handleResponse<MessageListResponse>(res);
+}
+
+export async function sendMessage(
+  projectId: string,
+  request: SendMessageRequest,
+): Promise<ChatMessagePair> {
+  const res = await fetch(`${BASE}/projects/${projectId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
-  return handleResponse<QueryResponse>(response);
+  return handleResponse<ChatMessagePair>(res);
 }
 
-export async function compareDocuments(request: CompareRequest): Promise<CompareResponse> {
-  const response = await fetch(`${BASE_URL}/query/compare`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  return handleResponse<CompareResponse>(response);
-}
-
-export async function whatIsMissing(request: MissingRequest): Promise<MissingResponse> {
-  const response = await fetch(`${BASE_URL}/query/missing`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  return handleResponse<MissingResponse>(response);
+export async function clearMessages(projectId: string): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${projectId}/messages`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }

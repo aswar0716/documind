@@ -1,35 +1,37 @@
-// These interfaces mirror the Pydantic schemas in backend/app/models/schemas.py.
-// Field names are kept in snake_case to match the JSON the backend sends.
+// All interfaces mirror the Pydantic schemas in backend/app/models/schemas.py
 
-// --- Document ---
+// ─── Projects ─────────────────────────────────────────────────────────────────
 
-export interface DocumentUploadResponse {
-  document_id: string;
-  filename: string;
-  page_count: number;
-  chunk_count: number;
-  message: string;
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  document_count: number;
+  message_count: number;
 }
 
+export interface ProjectListResponse {
+  projects: Project[];
+}
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
 export interface DocumentInfo {
-  document_id: string;
+  id: string;
+  project_id: string;
   filename: string;
   page_count: number;
   chunk_count: number;
-  uploaded_at: string; // ISO datetime string — Python datetime serialises to string in JSON
+  uploaded_at: string;
 }
 
 export interface DocumentListResponse {
   documents: DocumentInfo[];
 }
 
-// --- Query ---
-
-export interface QueryRequest {
-  question: string;
-  document_ids: string[];
-  top_k?: number; // optional — backend defaults to 5
-}
+// ─── Chat ─────────────────────────────────────────────────────────────────────
 
 export interface SourceChunk {
   document_id: string;
@@ -39,39 +41,29 @@ export interface SourceChunk {
   score: number;
 }
 
-export interface QueryResponse {
-  question: string;
-  answer: string;
+export interface ChatMessage {
+  id: string;
+  project_id: string;
+  role: "user" | "assistant";
+  content: string;
+  document_ids: string[];
   sources: SourceChunk[];
-  confidence: number;
-  document_ids: string[];
+  confidence: number | null;
+  created_at: string;
 }
 
-// --- Comparison mode ---
+export interface ChatMessagePair {
+  user_message: ChatMessage;
+  assistant_message: ChatMessage;
+}
 
-export interface CompareRequest {
+export interface MessageListResponse {
+  messages: ChatMessage[];
+  total: number;
+}
+
+export interface SendMessageRequest {
   question: string;
-  document_id_a: string;
-  document_id_b: string;
+  document_ids: string[];
   top_k?: number;
-}
-
-export interface CompareResponse {
-  question: string;
-  answer_a: QueryResponse;
-  answer_b: QueryResponse;
-}
-
-// --- What's missing mode ---
-
-export interface MissingRequest {
-  question: string;
-  document_ids: string[];
-}
-
-export interface MissingResponse {
-  question: string;
-  answer: string;
-  is_answerable: boolean;
-  missing_aspects: string[];
 }
