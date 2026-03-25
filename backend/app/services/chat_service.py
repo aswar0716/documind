@@ -63,8 +63,31 @@ def send_message(
         touch_project(project_id, db)
         return ChatMessagePair(user_message=user_msg, assistant_message=assistant_msg)
 
-    # Run the RAG pipeline (same function used by the old /query endpoint)
-    pipeline_result = _run_pipeline(question, document_ids, top_k)
+    # Fetch the last 6 messages (3 Q&A pairs) to give the LLM conversation context.
+    # We pair them up: user message immediately followed by assistant message.
+    # Capped at 3 pairs to keep token usage reasonable.
+    recent_rows = db.execute(
+        """SELECT role, content FROM messages
+           WHERE project_id = ?
+           ORDER BY created_at DESC
+           LIMIT 6""",
+        (project_id,),
+    ).fetchall()
+    # Rows come back newest-first; reverse so oldest pair is first in the list
+    recent_rows = list(reversed(recent_rows))
+
+    # Pair consecutive user/assistant rows into (user_text, assistant_text) tuples
+    history: list[tuple[str, str]] = []
+    i = 0
+    while i < len(recent_rows) - 1:
+        if recent_rows[i]["role"] == "user" and recent_rows[i + 1]["role"] == "assistant":
+            history.append((recent_rows[i]["content"], recent_rows[i + 1]["content"]))
+            i += 2
+        else:
+            i += 1  # skip unpaired row (shouldn't happen, but be safe)
+
+    # Run the RAG pipeline with conversational history
+    pipeline_result = _run_pipeline(question, document_ids, top_k, history=history or None)
 
     # Persist user message
     user_msg = _insert_message(

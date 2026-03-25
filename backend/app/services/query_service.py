@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 from app.core.config import settings
 from app.core.vector_store import get_collection, embedding_fn
@@ -143,10 +143,19 @@ def _compute_confidence(chunks: list[dict]) -> float:
 # Shared helper — run the full RAG pipeline for one set of document IDs
 # ---------------------------------------------------------------------------
 
-def _run_pipeline(question: str, document_ids: list[str], top_k: int) -> QueryResponse:
+def _run_pipeline(
+    question: str,
+    document_ids: list[str],
+    top_k: int,
+    history: list[tuple[str, str]] | None = None,
+) -> QueryResponse:
     """
     Internal helper used by both query_documents and compare_documents.
     Retrieves chunks, calls the LLM, computes confidence, returns QueryResponse.
+
+    history: optional list of (user_text, assistant_text) pairs from recent
+             messages, oldest first. These are inserted into the LLM message
+             list so the model has conversational context.
     """
     chunks = _retrieve_chunks(question=question, document_ids=document_ids, top_k=top_k)
 
@@ -167,13 +176,20 @@ def _run_pipeline(question: str, document_ids: list[str], top_k: int) -> QueryRe
     context = "\n\n".join(context_parts)
 
     llm = _get_llm()
-    messages = [
-        SystemMessage(content=_SYSTEM_PROMPT),
-        HumanMessage(content=_USER_PROMPT_TEMPLATE.format(
-            context=context,
-            question=question,
-        )),
-    ]
+
+    # Build message list: system → prior conversation turns → current question
+    messages: list = [SystemMessage(content=_SYSTEM_PROMPT)]
+
+    if history:
+        for user_text, assistant_text in history:
+            messages.append(HumanMessage(content=user_text))
+            messages.append(AIMessage(content=assistant_text))
+
+    messages.append(HumanMessage(content=_USER_PROMPT_TEMPLATE.format(
+        context=context,
+        question=question,
+    )))
+
     answer = llm.invoke(messages).content.strip()
 
     sources = [
