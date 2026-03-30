@@ -28,6 +28,7 @@ export function WorkspacePage({ projects, onRefresh }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Load documents and messages on mount
   useEffect(() => {
@@ -44,6 +45,14 @@ export function WorkspacePage({ projects, onRefresh }: Props) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Auto-resize textarea as content grows
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [question]);
 
   function toggleDoc(id: string) {
     setSelectedDocIds((prev) => {
@@ -270,8 +279,9 @@ export function WorkspacePage({ projects, onRefresh }: Props) {
           {sendError && <p className="error-text" style={{ marginBottom: "0.5rem" }}>{sendError}</p>}
           <div style={s.inputRow}>
             <textarea
+              ref={textareaRef}
               className="textarea"
-              style={{ flex: 1, minHeight: 52, maxHeight: 160, resize: "none", marginBottom: 0 }}
+              style={{ flex: 1, minHeight: 52, maxHeight: 160, resize: "none", marginBottom: 0, overflow: "hidden" }}
               placeholder={
                 documents.length === 0
                   ? "Upload a PDF first…"
